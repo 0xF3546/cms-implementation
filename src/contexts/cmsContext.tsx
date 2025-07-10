@@ -1,0 +1,118 @@
+import axios from "axios";
+import { CMSPageData, ImageBlockData, TextBlockData } from "../types/CMSTypes"
+import { createContext, useContext, useState, useRef, useCallback } from "react";
+
+type CMSContextType = {
+    pageData?: CMSPageData | null;
+    isLoading: boolean;
+    error: string | null;
+    loadPageData: (pageId: string) => Promise<void>;
+    getTextBlock: (textBlockId: string) => TextBlockData | null;
+    getImageBlock: (imageBlockId: string) => ImageBlockData | null;
+    getTextContent: (textBlockId: string) => string | null;
+    getImageUrl: (imageBlockId: string) => string | null;
+    cleanUp: () => void;
+}
+
+const CMSContext = createContext<CMSContextType | undefined>(undefined)
+
+export const useCMS = (): CMSContextType => {
+    const context = useContext(CMSContext);
+    if (!context) {
+        throw new Error("useCMS must be used within a CMSProvider");
+    }
+    return context;
+};
+
+export function CMSProvider({ children }: { children: React.ReactNode}) {
+    const [pageData, setPageData] = useState<CMSPageData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [currentPageId, setCurrentPageId] = useState<string | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    const loadPageData = useCallback(async (pageId: string) => {
+        if (currentPageId === pageId && isLoading) {
+            return;
+        }
+
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
+        setIsLoading(true);
+        setError(null);
+        setCurrentPageId(pageId);
+
+        try {
+            const response = await axios.get(
+                `https://api.deployment-cms-page.com/cms/${pageId}`,
+                { signal: abortController.signal }
+            );
+            
+            if (!abortController.signal.aborted && currentPageId === pageId) {
+                setPageData(response.data);
+            }
+        } catch (err) {
+            if (!abortController.signal.aborted) {
+                setError(err instanceof Error ? err.message : 'Error loading page data');
+                setPageData(null);
+            }
+        } finally {
+            if (!abortController.signal.aborted) {
+                setIsLoading(false);
+            }
+        }
+    }, [currentPageId, isLoading]);
+
+    const getTextBlock = (textBlockId: string) => {
+        return pageData?.textBlocks?.find(block => block.id === textBlockId) || null;
+    };
+
+    const getImageBlock = (imageBlockId: string) => {
+        return pageData?.images?.find(block => block.id === imageBlockId) || null;
+    };
+
+    const getTextContent = (textBlockId: string): string | null => {
+        const textBlock = getTextBlock(textBlockId);
+        return typeof textBlock?.content === "string" ? textBlock.content : null;
+    }
+
+    const getImageUrl = (imageBlockId: string): string | null => {
+        const imageBlock = getImageBlock(imageBlockId);
+        return typeof imageBlock?.imageUrl === "string" ? imageBlock.imageUrl : null;
+    }
+
+    const cleanUp = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        
+        setPageData(null);
+        setCurrentPageId(null);
+        setIsLoading(false);
+        setError(null);
+    }, []);
+
+    const value = {
+        pageData,
+        isLoading,
+        error,
+        loadPageData,
+        getTextBlock,
+        getImageBlock,
+        getTextContent,
+        getImageUrl,
+        cleanUp
+    };
+
+    return (
+        <CMSContext.Provider value={value}>
+            {children}
+        </CMSContext.Provider>
+    );
+}
