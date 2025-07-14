@@ -1,5 +1,5 @@
 import axios from "axios";
-import { CMSPageData, ImageBlockData, TextBlockData } from "../types/CMSTypes"
+import { CMSPageData, ImageBlockData, ImageBlockListData, TextBlockData, TextBlockListData } from "../types/CMSTypes"
 import { createContext, useContext, useState, useRef, useCallback } from "react";
 
 type CMSContextType = {
@@ -11,6 +11,8 @@ type CMSContextType = {
     getImageBlock: (imageBlockId: string) => ImageBlockData | null;
     getTextContent: (textBlockId: string) => string | null;
     getImageUrl: (imageBlockId: string) => string | null;
+    getImageBlockList: (imageBlockListId: string) => ImageBlockListData | null;
+    getTextBlockList: (textBlockListId: string) => TextBlockListData | null;
     cleanUp: () => void;
 }
 
@@ -86,6 +88,14 @@ export function CMSProvider({ children }: { children: React.ReactNode}) {
         return typeof imageBlock?.imageUrl === "string" ? imageBlock.imageUrl : null;
     }
 
+    const getImageBlockList = (imageBlockListId: string): ImageBlockListData | null => {
+        return pageData?.imageBlockLists?.find(list => list.id === imageBlockListId) || null;
+    }
+
+    const getTextBlockList = (textBlockListId: string): TextBlockListData | null => {
+        return pageData?.textBlockLists?.find(list => list.id === textBlockListId) || null;
+    }
+
     const cleanUp = useCallback(() => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -107,7 +117,9 @@ export function CMSProvider({ children }: { children: React.ReactNode}) {
         getImageBlock,
         getTextContent,
         getImageUrl,
-        cleanUp
+        cleanUp,
+        getImageBlockList,
+        getTextBlockList
     };
 
     return (
