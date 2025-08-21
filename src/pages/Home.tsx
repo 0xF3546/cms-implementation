@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useCMS } from "../contexts/cmsContext"
+import { useCMS } from "myheadless-react";
 
 export default function HomePage() {
     const cms = useCMS();
